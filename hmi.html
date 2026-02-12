@@ -178,6 +178,28 @@
     .legend-swatch.fault { background: var(--red); }
     .legend-swatch.isolated { background: var(--grey); }
     .legend-swatch.comm_lost { background: var(--dark); }
+
+    .notes-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: #0f1730;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .notes-table th,
+    .notes-table td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      font-size: 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .notes-table th {
+      background: #162344;
+      color: #e5ebff;
+    }
     .mono { font-family: monospace; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
     @keyframes flash { 0%,49% { opacity: 1; } 50%,100% { opacity: 0.35; } }
@@ -272,8 +294,12 @@
         return model.side === "LEFT" ? isLeftDoor : !isLeftDoor;
       }
 
+      function canCommandDoor(door) {
+        return door.enabled && door.state !== 'isolated' && door.state !== 'comm_lost';
+      }
+
       function canCloseDoor(door) {
-        return door.state !== 'fault' && !door.obstruction;
+        return canCommandDoor(door) && door.state !== 'fault' && !door.obstruction;
       }
 
       function legendHtml() {
@@ -289,6 +315,40 @@
           </div>
         </div>`;
       }
+      function notesTableHtml(level) {
+        const notes = {
+          train: [
+            ["What you see", "12 coach cards with door blocks, coach health badge (OK/FAULT/COMM LOST), and global train command bar."],
+            ["OPEN ALL", "Opens doors on selected side (LEFT/RIGHT/BOTH) for commandable doors only."],
+            ["CLOSE ALL", "Closes selected-side doors only when door is commandable and has no fault/obstruction."],
+            ["ENABLE/DISABLE", "ENABLE makes doors commandable. DISABLE isolates doors from OPEN/CLOSE commands."],
+            ["RESET ALL", "Clears fault/comm-lost and obstruction flags train-wide; disabled doors remain isolated."],
+            ["SIDE selector", "Cycles LEFT → RIGHT → BOTH and scopes OPEN/CLOSE commands."]
+          ],
+          coach: [
+            ["What you see", "All doors in the selected coach, colored by state, plus coach-level commands."],
+            ["OPEN COACH", "Opens commandable doors in this coach on selected side."],
+            ["CLOSE COACH", "Closes safe/commandable doors in this coach on selected side."],
+            ["ENABLE/DISABLE COACH", "ENABLE restores commandability. DISABLE isolates coach doors from open/close commands."],
+            ["RESET COACH", "Clears fault/comm-lost and obstruction in this coach; disabled doors stay isolated."],
+            ["Door tiles", "Tap any door tile to open Level 3 detail/control for that specific door."]
+          ],
+          door: [
+            ["What you see", "Single door status panel showing current state, enable flag, last command, and obstruction flag."],
+            ["OPEN", "Available only when door is commandable (enabled and not isolated/comm-lost)."],
+            ["CLOSE", "Available only when commandable and no fault/obstruction is active."],
+            ["ENABLE", "Marks door enabled; if isolated, returns it to closed so it can accept commands."],
+            ["DISABLE", "Marks door disabled and isolates it from OPEN/CLOSE commands."],
+            ["RESET FAULT", "Clears fault/comm-lost and obstruction; returns to closed if enabled, isolated if disabled."]
+          ]
+        };
+        const rows = (notes[level] || []).map(([item, meaning]) => `<tr><td><strong>${item}</strong></td><td>${meaning}</td></tr>`).join('');
+        return `<table class="notes-table" aria-label="${level} notes">
+          <thead><tr><th style="width:30%;">Item</th><th>How to use / What it means</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      }
+
 
       function mkDoor(door, large = false) {
         return `<div class="door ${large ? 'large' : 'small'}" data-state="${door.state}" title="Door ${door.id}: ${door.state}">D${door.id}</div>`;
@@ -350,6 +410,7 @@
           </div>
           ${disabled ? '<div class="legend">Door Commands Disabled — Train in Motion</div>' : ''}
           ${legendHtml()}
+          ${notesTableHtml('train')}
         `;
 
         el.viewTrain.querySelectorAll('.coach-card').forEach(n => n.onclick = () => navigateCoach(Number(n.dataset.coach)));
@@ -388,6 +449,7 @@
           </div>
           ${disabled ? '<div class="legend">Door Commands Disabled — Train in Motion</div>' : ''}
           ${legendHtml()}
+          ${notesTableHtml('coach')}
         `;
         document.getElementById('backTrain').onclick = navigateTrain;
         document.getElementById('openCoach').onclick = () => confirmAction(`Open selected-side doors in coach ${coachId}?`, () => setCoachDoors(coachId,'open'));
@@ -401,6 +463,7 @@
         const coach = model.coaches[coachId-1];
         const door = coach.doors[doorId-1];
         const disabled = commandDisabled();
+        const openDisabled = disabled || !canCommandDoor(door);
         const closeDisabled = disabled || !canCloseDoor(door);
         el.scopeLabel.textContent = `SCOPE: C${coachId} D${doorId}`;
         el.viewTrain.classList.add('hidden');
@@ -419,7 +482,7 @@
               <div><div>Obstruction</div><strong>${door.obstruction ? 'TRUE' : 'FALSE'}</strong></div>
             </div>
             <div class="commands" style="margin-top:10px;">
-              <button id="cmdOpen" ${disabled?"disabled":""}>OPEN</button>
+              <button id="cmdOpen" ${openDisabled?"disabled":""}>OPEN</button>
               <button id="cmdClose" ${closeDisabled?"disabled":""}>CLOSE</button>
               <button id="cmdEnable" ${disabled?"disabled":""}>ENABLE</button>
               <button id="cmdDisable" ${disabled?"disabled":""}>DISABLE</button>
@@ -427,17 +490,28 @@
             </div>
             ${disabled ? '<div class="legend">Door Commands Disabled — Train in Motion</div>' : ''}
             ${legendHtml()}
+            ${notesTableHtml('door')}
           </div>
         `;
         document.getElementById('backCoach').onclick = () => navigateCoach(coachId);
-        document.getElementById('cmdOpen').onclick = () => setDoor(coachId,doorId,{state:'open',lastCmd:'open'});
+        document.getElementById('cmdOpen').onclick = () => {
+          if (!canCommandDoor(door)) return;
+          setDoor(coachId,doorId,{state:'open',lastCmd:'open'});
+        };
+
         document.getElementById('cmdClose').onclick = () => {
           if (!canCloseDoor(door)) return;
           setDoor(coachId,doorId,{state:'closed',lastCmd:'close'});
         };
-        document.getElementById('cmdEnable').onclick = () => setDoor(coachId,doorId,{enabled:true,lastCmd:'enable'});
-        document.getElementById('cmdDisable').onclick = () => setDoor(coachId,doorId,{enabled:false,lastCmd:'disable'});
-        document.getElementById('cmdReset').onclick = () => setDoor(coachId,doorId,{state:'closed',obstruction:false,lastCmd:'reset'});
+        document.getElementById('cmdEnable').onclick = () => {
+          applyEnable(door, true, 'enable');
+          render();
+        };
+        document.getElementById('cmdDisable').onclick = () => {
+          applyEnable(door, false, 'disable');
+          render();
+        };
+        document.getElementById('cmdReset').onclick = () => setDoor(coachId,doorId,{state:door.enabled ? 'closed' : 'isolated',obstruction:false,lastCmd:'reset'});
       }
 
       function confirmAction(msg, fn) {
@@ -451,6 +525,7 @@
       function setAllDoors(state, cmd) {
         model.coaches.forEach(c => c.doors.forEach(d => {
           if (!sideAllowsDoor(d.id)) return;
+          if (state === 'open' && !canCommandDoor(d)) return;
           if (state === 'closed' && !canCloseDoor(d)) return;
           d.state = state;
           d.lastCmd = cmd + '_' + model.side.toLowerCase();
@@ -460,16 +535,23 @@
       function setCoachDoors(coachId, state) {
         model.coaches[coachId-1].doors.forEach(d => {
           if (!sideAllowsDoor(d.id)) return;
+          if (state === 'open' && !canCommandDoor(d)) return;
           if (state === 'closed' && !canCloseDoor(d)) return;
           d.state = state;
           d.lastCmd = 'coach_' + state + '_' + model.side.toLowerCase();
         });
         render();
       }
-      function setAllEnable(v) { model.coaches.forEach(c => c.doors.forEach(d => { d.enabled=v; d.lastCmd=(v?'enable_all':'disable_all'); })); render(); }
-      function setCoachEnable(coachId,v) { model.coaches[coachId-1].doors.forEach(d => { d.enabled=v; d.lastCmd=(v?'enable_coach':'disable_coach'); }); render(); }
-      function resetAllFaults() { model.coaches.forEach(c => c.doors.forEach(d => { if (d.state==='fault'||d.state==='comm_lost') d.state='closed'; d.obstruction=false; d.lastCmd='reset_all'; })); render(); }
-      function resetCoachFaults(coachId) { model.coaches[coachId-1].doors.forEach(d => { if (d.state==='fault'||d.state==='comm_lost') d.state='closed'; d.obstruction=false; d.lastCmd='reset_coach'; }); render(); }
+      function applyEnable(door, enabled, cmdTag) {
+        door.enabled = enabled;
+        if (enabled && door.state === 'isolated') door.state = 'closed';
+        if (!enabled) door.state = 'isolated';
+        door.lastCmd = cmdTag;
+      }
+      function setAllEnable(v) { model.coaches.forEach(c => c.doors.forEach(d => { applyEnable(d, v, (v?'enable_all':'disable_all')); })); render(); }
+      function setCoachEnable(coachId,v) { model.coaches[coachId-1].doors.forEach(d => { applyEnable(d, v, (v?'enable_coach':'disable_coach')); }); render(); }
+      function resetAllFaults() { model.coaches.forEach(c => c.doors.forEach(d => { if (d.state==='fault'||d.state==='comm_lost') d.state=d.enabled ? 'closed' : 'isolated'; d.obstruction=false; d.lastCmd='reset_all'; })); render(); }
+      function resetCoachFaults(coachId) { model.coaches[coachId-1].doors.forEach(d => { if (d.state==='fault'||d.state==='comm_lost') d.state=d.enabled ? 'closed' : 'isolated'; d.obstruction=false; d.lastCmd='reset_coach'; }); render(); }
 
       function navigateTrain() { model.currentView = { level: 1, coach: null, door: null }; render(); }
       function navigateCoach(coach) { model.currentView = { level: 2, coach, door: null }; render(); }

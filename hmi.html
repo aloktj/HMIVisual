@@ -276,8 +276,22 @@
         return door.state !== 'fault' && !door.obstruction;
       }
 
+      function legendHtml() {
+        return `<div class="legend-panel">
+          <strong>Door State Legend</strong>
+          <div class="legend-items">
+            <div class="legend-item"><span class="legend-swatch closed"></span>Closed / Locked</div>
+            <div class="legend-item"><span class="legend-swatch open"></span>Open</div>
+            <div class="legend-item"><span class="legend-swatch moving"></span>Moving</div>
+            <div class="legend-item"><span class="legend-swatch fault"></span>Fault / Obstruction</div>
+            <div class="legend-item"><span class="legend-swatch isolated"></span>Isolated</div>
+            <div class="legend-item"><span class="legend-swatch comm_lost"></span>Communication Lost</div>
+          </div>
+        </div>`;
+      }
+
       function mkDoor(door, large = false) {
-        return `<div class="door ${large ? 'large' : 'small'}" data-state="${door.state}" title="Door ${door.id}: ${door.state}">D${door.id} ${stateLabel[door.state]}</div>`;
+        return `<div class="door ${large ? 'large' : 'small'}" data-state="${door.state}" title="Door ${door.id}: ${door.state}">D${door.id}</div>`;
       }
 
       function countFaults() {
@@ -335,17 +349,7 @@
             <button id="toggleSide">SIDE: ${model.side}</button>
           </div>
           ${disabled ? '<div class="legend">Door Commands Disabled — Train in Motion</div>' : ''}
-          <div class="legend-panel">
-            <strong>Door State Legend</strong>
-            <div class="legend-items">
-              <div class="legend-item"><span class="legend-swatch closed"></span>Closed / Locked</div>
-              <div class="legend-item"><span class="legend-swatch open"></span>Open</div>
-              <div class="legend-item"><span class="legend-swatch moving"></span>Moving</div>
-              <div class="legend-item"><span class="legend-swatch fault"></span>Fault / Obstruction</div>
-              <div class="legend-item"><span class="legend-swatch isolated"></span>Isolated</div>
-              <div class="legend-item"><span class="legend-swatch comm_lost"></span>Communication Lost</div>
-            </div>
-          </div>
+          ${legendHtml()}
         `;
 
         el.viewTrain.querySelectorAll('.coach-card').forEach(n => n.onclick = () => navigateCoach(Number(n.dataset.coach)));
@@ -383,6 +387,7 @@
             <button id="resetCoach" ${disabled?"disabled":""}>RESET COACH</button>
           </div>
           ${disabled ? '<div class="legend">Door Commands Disabled — Train in Motion</div>' : ''}
+          ${legendHtml()}
         `;
         document.getElementById('backTrain').onclick = navigateTrain;
         document.getElementById('openCoach').onclick = () => confirmAction(`Open selected-side doors in coach ${coachId}?`, () => setCoachDoors(coachId,'open'));
@@ -421,6 +426,7 @@
               <button id="cmdReset" ${disabled?"disabled":""}>RESET FAULT</button>
             </div>
             ${disabled ? '<div class="legend">Door Commands Disabled — Train in Motion</div>' : ''}
+            ${legendHtml()}
           </div>
         `;
         document.getElementById('backCoach').onclick = () => navigateCoach(coachId);

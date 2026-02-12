@@ -303,16 +303,19 @@
       }
 
       function legendHtml() {
+        const legendEntries = [
+          { cls: 'closed', label: 'Closed / Locked', help: 'Door is fully closed and locked; normal safe state for train movement.' },
+          { cls: 'open', label: 'Open', help: 'Door is open and available for boarding/alighting.' },
+          { cls: 'moving', label: 'Moving', help: 'Door is in transition between open and closed states.' },
+          { cls: 'fault', label: 'Fault / Obstruction', help: 'Door has a fault or obstruction; close is blocked until reset/clear.' },
+          { cls: 'isolated', label: 'Isolated', help: 'Door is disabled/isolated from remote open/close commands.' },
+          { cls: 'comm_lost', label: 'Communication Lost', help: 'No communication with this door controller; commandability is unavailable.' }
+        ];
         return `<div class="legend-panel">
           <strong>Door State Legend</strong>
-          <div class="legend-items">
-            <div class="legend-item"><span class="legend-swatch closed"></span>Closed / Locked</div>
-            <div class="legend-item"><span class="legend-swatch open"></span>Open</div>
-            <div class="legend-item"><span class="legend-swatch moving"></span>Moving</div>
-            <div class="legend-item"><span class="legend-swatch fault"></span>Fault / Obstruction</div>
-            <div class="legend-item"><span class="legend-swatch isolated"></span>Isolated</div>
-            <div class="legend-item"><span class="legend-swatch comm_lost"></span>Communication Lost</div>
-          </div>
+          <div class="legend-items">${legendEntries.map(item =>
+            `<div class="legend-item" title="${item.help}"><span class="legend-swatch ${item.cls}"></span>${item.label}</div>`
+          ).join('')}</div>
         </div>`;
       }
       function notesTableHtml(level) {
